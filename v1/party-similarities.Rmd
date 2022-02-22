@@ -1,0 +1,96 @@
+---
+title: "Party Similarities"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(DBI)
+library(ggplot2)
+
+```
+
+```{r compute-similarity-function}
+
+party_similarity <- function(party_1, party_2) {
+    
+  con <- RSQLite::dbConnect(RSQLite::SQLite(), "db.sqlite")
+  party_positions <- tbl(con, "opinion") %>% 
+    inner_join(tbl(con, "party"), by = "party_id") %>% 
+    select(statement_id, party_shorthand, party_id, position) %>%  
+    data.frame()
+  
+  selected_party_positions <- party_positions %>% 
+    filter((party_id == party_1) | (party_id == party_2)) %>% 
+    group_by(statement_id) %>% 
+    summarize(difference = abs(max(position) - min(position))) %>% 
+    ungroup()
+  
+  similarity <- 1 - (sum(selected_party_positions$difference) / (2 * nrow(selected_party_positions)))
+
+  dbDisconnect(conn = con)
+  
+  return(similarity)
+  
+}
+
+```
+
+```{r plot-similarity-matrix}
+
+included_parties <- c(1, 2, 4, 6)
+
+sims <- expand.grid(included_parties, included_parties)
+sims <- cbind(sims, apply(sims, 1, function(x) party_similarity(x[1], x[2])))
+names(sims) <- c("party_1_id", "party_2_id", "similarity")
+
+con <- RSQLite::dbConnect(RSQLite::SQLite(), "db.sqlite")
+
+sims %>% 
+  inner_join(
+    tbl(con, "party") %>% 
+      select(party_id, party_shorthand) %>%
+      data.frame() %>% 
+      rename(party_shorthand_1 = party_shorthand), 
+    by = c("party_1_id" = "party_id")
+  ) %>% 
+  inner_join(
+    tbl(con, "party") %>% 
+      select(party_id, party_shorthand) %>%
+      data.frame() %>% 
+      rename(party_shorthand_2 = party_shorthand), 
+    by = c("party_2_id" = "party_id")
+  ) %>% 
+  select(party_shorthand_1, party_shorthand_2, similarity) %>% 
+  arrange(party_shorthand_1, similarity) %>% 
+  ggplot(
+    aes(
+      x = party_shorthand_1, 
+      y = party_shorthand_2, 
+      alpha = similarity
+    )
+  ) +
+  geom_tile(fill = "navyblue") +
+  scale_alpha_continuous(range = c(0, 1), limits = c(0, 1), breaks = seq(1, 0, -0.2)) +
+  coord_fixed() +
+  theme(
+    text = element_text(family = "Courier", color = "grey10"),
+    plot.background = element_rect(fill = "white", color = "white"),
+    legend.background = element_rect(fill = "white"),
+    legend.title = element_text(margin = margin(b = 10)),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text = element_text(color = "grey10"),
+    axis.ticks = element_blank()
+  )
+
+dbDisconnect(conn = con)
+
+ggsave(file.path("plots", "party_similarities.png"), width = 8, height = 6)
+
+```
+
