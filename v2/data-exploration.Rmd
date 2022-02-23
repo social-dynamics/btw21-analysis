@@ -78,3 +78,40 @@ results %>%
 ```
 
 
+```{r}
+
+party_1 <- dbGetQuery(con, "
+  select *
+  from opinion
+  where party_id = 1;        
+")
+
+```
+
+
+```{r}
+
+weighted_opinions <- readr::read_csv("weighted_opinions.csv")
+
+weighted_opinions %>% 
+  group_by(statement_id) %>% 
+  summarize(agg_pos = weighted.mean(position, weight)) %>% 
+  ungroup() %>% 
+  inner_join(
+    party_1, by = "statement_id"    
+  ) %>% 
+  select(statement_id, agg_pos, position) %>% 
+  pivot_longer(cols = c("agg_pos", "position")) %>% 
+  ggplot(aes(x = statement_id, y = value, color = name)) +
+  geom_point() +
+  geom_line() +
+  coord_flip()
+
+
+```
+
+
+
+
+
+

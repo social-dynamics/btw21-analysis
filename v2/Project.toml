@@ -1,0 +1,4 @@
+[deps]
+Negotiations = "24e1d0de-b6f9-53d0-bef9-cf43d4d39321"
+Pipe = "b98c9c47-44ae-5843-9183-064241ee97a0"
+SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
